@@ -9,14 +9,9 @@ import (
 
 type Config struct {
 	Concurrency int                  `hcl:"concurrency,optional"`
-	Server      *ServerConfigBlock   `hcl:"server,block"`
 	Outputs     []*OutputConfigBlock `hcl:"output,block"`
 	Layers      []*LayerConfigBlock  `hcl:"layer,block"`
 	Maps        []*MapConfigBlock    `hcl:"map,block"`
-}
-
-type ServerConfigBlock struct {
-	Bind string `hcl:"bind"`
 }
 
 type OutputConfigBlock struct {
