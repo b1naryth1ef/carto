@@ -10,7 +10,7 @@ carto is a fast, lightweight and beautiful online map generator for minecraft.
 
 ## example
 
-the following image of the hermitcraft season 9 map was generated in 28s on a 3900X
+a full online map for the hermitcraft season 9 save was generated in 28s on a 3900X.
 
 ![alt rendered map](res/hermitcraft_9.png)
 
