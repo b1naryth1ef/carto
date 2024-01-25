@@ -60,8 +60,12 @@ var MapSelector = L.Control.extend({
 });
 
 var CoordViewer = L.Control.extend({
+	initialize(options) {
+		L.Util.setOptions(this, options);
+	},
+
 	onAdd: (map) => {
-		var container = L.DomUtil.create('div');
+		var container = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control-layers-expanded');
 		var gauge = L.DomUtil.create('coords');
 		container.style.background = 'rgba(255,255,255,1)';
 		container.style.textAlign = 'right';
@@ -119,7 +123,7 @@ function init(data) {
 		}
 	}
 
-	(new CoordViewer).addTo(map);
+	(new CoordViewer({ position: "bottomleft" })).addTo(map);
 	(new MapSelector(maps)).addTo(map);
 }
 
