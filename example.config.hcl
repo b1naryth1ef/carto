@@ -14,15 +14,19 @@ layer "biome" {
   opacity = 0.5
 }
 
+layer "light" {
+  render = "light"
+}
+
 map "overworld" {
   output = "web"
   path   = "/home/andrei/mc/world/region"
-  layers = ["normal", "biome"]
+  layers = ["normal", "biome", "light"]
 }
 
 map "hermitcraft9" {
   output  = "web"
   path    = "/mnt/bigdata/mc/tmp/region"
-  layers  = ["normal", "biome"]
+  layers  = ["normal", "biome", "light"]
   version = "1.20.1"
 }
