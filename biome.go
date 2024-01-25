@@ -78,6 +78,10 @@ func (c *BiomeRenderer) RenderChunk(chunk *save.Chunk) (image.Image, error) {
 			sectionY := yStart / 16
 
 			section := chunk.Sections[sectionY]
+			if len(section.Biomes.Palette) == 0 {
+				continue
+			}
+
 			v := calcBitsPerValue(16*16*16, len(section.Biomes.Data))
 			biomes := level.NewBitStorage(v, 16*16*16, section.Biomes.Data)
 

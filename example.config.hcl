@@ -6,12 +6,12 @@ output "web" {
 }
 
 layer "normal" {
-  render  = "pixel"
-  shading = true
+  render = "pixel"
 }
 
 layer "biome" {
-  render = "biome"
+  render  = "biome"
+  opacity = 0.5
 }
 
 map "overworld" {

@@ -4,7 +4,7 @@ import (
 	"embed"
 )
 
-//go:embed index.html
+//go:embed index.html.tmpl
 var indexHTML string
 
 //go:embed js/*

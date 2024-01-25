@@ -8,7 +8,6 @@ import (
 	"html/template"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"time"
 
@@ -67,8 +66,20 @@ func writeDirectory(path string, fs embed.FS, dir string) error {
 	return nil
 }
 
-func writeStatic(path string, maps []string) error {
-	err := os.WriteFile(filepath.Join(path, "index.html"), []byte(web.GetIndexHTML()), os.ModePerm)
+func writeStatic(path string, data web.FrontendData) error {
+	fd, err := os.Create(filepath.Join(path, "index.html"))
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+
+	dataSerialized, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	tmpl := template.Must(template.New("index.html").Parse(web.GetIndexHTML()))
+	err = tmpl.Execute(fd, string(dataSerialized))
 	if err != nil {
 		return err
 	}
@@ -84,19 +95,12 @@ func writeStatic(path string, maps []string) error {
 		return err
 	}
 
-	data, err := fs.ReadFile("js/map.js.tmpl")
+	mapJS, err := fs.ReadFile("js/map.js")
 	if err != nil {
 		return err
 	}
 
-	fd, err := os.Create(filepath.Join(path, "static", "js", "map.js"))
-	if err != nil {
-		return err
-	}
-	defer fd.Close()
-
-	tmpl := template.Must(template.New("map.js").Parse(string(data)))
-	err = tmpl.Execute(fd, map[string]interface{}{"Maps": maps, "Default": maps[0]})
+	err = os.WriteFile(filepath.Join(path, "static", "js", "map.js"), mapJS, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -130,9 +134,128 @@ func downloadClientJar(v string, path string) error {
 	return meta.Downloads["client"].Get(out)
 }
 
+func buildMap(config *carto.Config, opts BuildOpts, mapCfg *carto.MapConfigBlock, layers map[string]*carto.LayerConfigBlock, outputPath string) (*web.MapData, error) {
+	tilePath := filepath.Join(outputPath, "tiles", mapCfg.Name)
+	err := ensureDirectory(tilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	version := mapCfg.Version
+	if version == "" {
+		levelPath := filepath.Join(mapCfg.Path, "..", "level.dat")
+
+		fd, err := os.Open(levelPath)
+		if err != nil {
+			return nil, err
+		}
+
+		r, err := gzip.NewReader(fd)
+		if err != nil {
+			return nil, err
+		}
+
+		level, err := save.ReadLevel(r)
+		fd.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		version = level.Data.Version.Name
+	}
+
+	clientJarPath := filepath.Join(outputPath, "res", fmt.Sprintf("client-%s.jar", version))
+	if _, err := os.Stat(clientJarPath); os.IsNotExist(err) {
+		err = downloadClientJar(version, clientJarPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	assetLoader, err := carto.NewAssetLoaderFromClientJAR(clientJarPath)
+	if err != nil {
+		return nil, err
+	}
+	defer assetLoader.Close()
+
+	mapData := web.MapData{
+		Name:   mapCfg.Name,
+		Layers: []web.LayerData{},
+	}
+
+	for _, layerName := range mapCfg.Layers {
+		layerCfg := layers[layerName]
+
+		mapData.Layers = append(mapData.Layers, web.LayerData{
+			Name:     layerName,
+			TileSize: 512,
+			Opacity:  layerCfg.Opacity,
+		})
+
+		err := ensureDirectory(filepath.Join(tilePath, layerName))
+		if err != nil {
+			return nil, err
+		}
+
+		renderOpts := carto.WorldRenderOpts{
+			Concurrency: config.Concurrency,
+		}
+
+		var buildMeta carto.RenderMeta
+		buildMetaPath := filepath.Join(tilePath, layerName, "build.json")
+
+		if !opts.ForceClean {
+			if _, err := os.Stat(filepath.Join(tilePath, layerName, "build.json")); err == nil {
+				data, err := os.ReadFile(buildMetaPath)
+				if err != nil {
+					return nil, err
+				}
+
+				err = json.Unmarshal(data, &buildMeta)
+				if err != nil {
+					return nil, err
+				}
+
+				renderOpts.RegionTimestamps = buildMeta.RegionTimestamps
+			}
+		}
+
+		var chunkRenderer carto.ChunkRenderer
+		if layerCfg.Render == "pixel" {
+			renderOpts := carto.ChunkPixelRendererOpts{
+				Shading: true,
+			}
+			chunkRenderer = carto.NewChunkPixelRenderer(renderOpts, assetLoader)
+		} else if layerCfg.Render == "biome" {
+			chunkRenderer = carto.NewBiomeRenderer(assetLoader)
+		} else {
+			log.Panicf("Unsupported renderer '%s'", layerCfg.Render)
+		}
+
+		renderer := carto.NewRenderer(chunkRenderer)
+
+		start := time.Now()
+		result, err := renderer.RenderWorld(mapCfg.Path, filepath.Join(tilePath, layerName), renderOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		buildMeta.RegionTimestamps = result.RegionTimestamps
+		data, err := json.Marshal(buildMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		os.WriteFile(buildMetaPath, data, os.ModePerm)
+
+		log.Printf("Finished rendering %s/%s in %dms (%d chunks)", mapCfg.Name, layerName, time.Since(start).Milliseconds(), result.RenderedChunks)
+	}
+
+	return &mapData, nil
+}
+
 func Build(config *carto.Config, opts BuildOpts) error {
 	outputs := map[string]string{}
-	outputMaps := map[string][]string{}
 	for _, output := range config.Outputs {
 		err := ensureDirectory(output.Path)
 		if err != nil {
@@ -150,7 +273,6 @@ func Build(config *carto.Config, opts BuildOpts) error {
 		}
 
 		outputs[output.Name] = output.Path
-		outputMaps[output.Name] = []string{}
 	}
 
 	layers := map[string]*carto.LayerConfigBlock{}
@@ -158,117 +280,20 @@ func Build(config *carto.Config, opts BuildOpts) error {
 		layers[layer.Name] = layer
 	}
 
+	maps := []web.MapData{}
 	for _, mapCfg := range config.Maps {
-		outputPath := outputs[mapCfg.Output]
-
-		tilePath := filepath.Join(outputPath, "tiles", mapCfg.Name)
-		err := ensureDirectory(tilePath)
+		mapData, err := buildMap(config, opts, mapCfg, layers, outputs[mapCfg.Output])
 		if err != nil {
 			return err
 		}
-
-		version := mapCfg.Version
-		if version == "" {
-			levelPath := filepath.Join(mapCfg.Path, "..", "level.dat")
-
-			fd, err := os.Open(levelPath)
-			if err != nil {
-				return err
-			}
-
-			r, err := gzip.NewReader(fd)
-			if err != nil {
-				return err
-			}
-
-			level, err := save.ReadLevel(r)
-			fd.Close()
-			if err != nil {
-				return err
-			}
-
-			version = level.Data.Version.Name
-		}
-
-		clientJarPath := filepath.Join(outputPath, "res", fmt.Sprintf("client-%s.jar", version))
-		if _, err := os.Stat(clientJarPath); os.IsNotExist(err) {
-			err = downloadClientJar(version, clientJarPath)
-			if err != nil {
-				return err
-			}
-		}
-
-		assetLoader, err := carto.NewAssetLoaderFromClientJAR(clientJarPath)
-		if err != nil {
-			return err
-		}
-		defer assetLoader.Close()
-
-		for _, layerName := range mapCfg.Layers {
-			err := ensureDirectory(filepath.Join(tilePath, layerName))
-			if err != nil {
-				return err
-			}
-
-			renderOpts := carto.WorldRenderOpts{
-				Concurrency: config.Concurrency,
-			}
-
-			var buildMeta carto.RenderMeta
-			buildMetaPath := filepath.Join(tilePath, "build.json")
-
-			if !opts.ForceClean {
-				if _, err := os.Stat(filepath.Join(tilePath, "build.json")); err == nil {
-					data, err := os.ReadFile(buildMetaPath)
-					if err != nil {
-						return err
-					}
-
-					err = json.Unmarshal(data, &buildMeta)
-					if err != nil {
-						return err
-					}
-
-					renderOpts.RegionTimestamps = buildMeta.RegionTimestamps
-				}
-			}
-
-			var chunkRenderer carto.ChunkRenderer
-			if layers[layerName].Render == "pixel" {
-				renderOpts := carto.ChunkPixelRendererOpts{
-					Shading: true,
-				}
-				chunkRenderer = carto.NewChunkPixelRenderer(renderOpts, assetLoader)
-			} else if layers[layerName].Render == "biome" {
-				chunkRenderer = carto.NewBiomeRenderer(assetLoader)
-			} else {
-				log.Panicf("Unsupported renderer '%s'", layers[layerName].Render)
-			}
-
-			renderer := carto.NewRenderer(chunkRenderer)
-
-			start := time.Now()
-			result, err := renderer.RenderWorld(mapCfg.Path, filepath.Join(tilePath, layerName), renderOpts)
-			if err != nil {
-				return err
-			}
-
-			buildMeta.RegionTimestamps = result.RegionTimestamps
-			data, err := json.Marshal(buildMeta)
-			if err != nil {
-				return err
-			}
-
-			os.WriteFile(buildMetaPath, data, os.ModePerm)
-
-			log.Printf("Finished rendering %s/%s in %dms (%d chunks)", mapCfg.Name, layerName, time.Since(start).Milliseconds(), result.RenderedChunks)
-			outputMaps[mapCfg.Output] = append(outputMaps[mapCfg.Output], path.Join(mapCfg.Name, layerName))
-		}
+		maps = append(maps, *mapData)
 	}
 
 	for _, output := range config.Outputs {
 		if output.IncludeStatic {
-			err := writeStatic(output.Path, outputMaps[output.Name])
+			err := writeStatic(output.Path, web.FrontendData{
+				Maps: maps,
+			})
 			if err != nil {
 				return err
 			}
