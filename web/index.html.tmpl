@@ -18,6 +18,10 @@
 			height: 100%;
 		}
 
+		.blah {
+			background: white;
+		}
+
 		/* Leaflet crispness override */
 		.leaflet-container .leaflet-overlay-pane svg,
 		.leaflet-container .leaflet-marker-pane img,
@@ -49,6 +53,9 @@
 <body>
 	<div id="map" class="map"></div>
 	<script src="static/js/map.js"></script>
+	<script>
+		init(JSON.parse({{ . }}));
+	</script>
 </body>
 
 </html>
