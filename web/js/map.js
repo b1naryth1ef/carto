@@ -8,7 +8,7 @@ var MapSelector = L.Control.extend({
 	},
 
 	onAdd: function (map) {
-		let obj = L.DomUtil.create('div', 'blah');
+		let obj = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control-layers-expanded');
 		L.DomEvent.disableClickPropagation(obj);
 		L.DomEvent.disableScrollPropagation(obj);
 
