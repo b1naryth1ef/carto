@@ -10,12 +10,6 @@ import (
 	"github.com/Tnze/go-mc/save"
 )
 
-type ChunkRenderer interface {
-	ImageSize() (int, int)
-	RenderChunk(*save.Chunk) (image.Image, error)
-	Finalize(path string) error
-}
-
 type ChunkPixelRendererOpts struct {
 	Shading bool
 }

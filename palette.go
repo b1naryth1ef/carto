@@ -19,6 +19,7 @@ var airBlocks = map[string]struct{}{
 	"minecraft:dead_bush":   {},
 	"minecraft:short_grass": {},
 	"minecraft:lily_pad":    {},
+	"minecraft:torch":       {},
 }
 
 func isAirBlock(block string) bool {

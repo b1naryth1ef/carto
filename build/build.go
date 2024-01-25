@@ -228,6 +228,8 @@ func buildMap(config *carto.Config, opts BuildOpts, mapCfg *carto.MapConfigBlock
 			chunkRenderer = carto.NewChunkPixelRenderer(renderOpts, assetLoader)
 		} else if layerCfg.Render == "biome" {
 			chunkRenderer = carto.NewBiomeRenderer(assetLoader)
+		} else if layerCfg.Render == "light" {
+			chunkRenderer = carto.NewLightingRenderer()
 		} else {
 			log.Panicf("Unsupported renderer '%s'", layerCfg.Render)
 		}
