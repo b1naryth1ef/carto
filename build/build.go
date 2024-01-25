@@ -202,10 +202,10 @@ func buildMap(config *carto.Config, opts BuildOpts, mapCfg *carto.MapConfigBlock
 		}
 
 		var buildMeta carto.RenderMeta
-		buildMetaPath := filepath.Join(tilePath, "build.json")
+		buildMetaPath := filepath.Join(tilePath, layerName, "build.json")
 
 		if !opts.ForceClean {
-			if _, err := os.Stat(filepath.Join(tilePath, "build.json")); err == nil {
+			if _, err := os.Stat(filepath.Join(tilePath, layerName, "build.json")); err == nil {
 				data, err := os.ReadFile(buildMetaPath)
 				if err != nil {
 					return nil, err
