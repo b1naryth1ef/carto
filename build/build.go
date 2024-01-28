@@ -220,12 +220,11 @@ func buildMap(config *carto.Config, opts BuildOpts, mapCfg *carto.MapConfigBlock
 			}
 		}
 
+		opts := carto.NewChunkRenderOpts(layerCfg.Options)
+
 		var chunkRenderer carto.ChunkRenderer
 		if layerCfg.Render == "pixel" {
-			renderOpts := carto.ChunkPixelRendererOpts{
-				Shading: true,
-			}
-			chunkRenderer = carto.NewChunkPixelRenderer(renderOpts, assetLoader)
+			chunkRenderer = carto.NewChunkPixelRenderer(opts, assetLoader)
 		} else if layerCfg.Render == "biome" {
 			chunkRenderer = carto.NewBiomeRenderer(assetLoader)
 		} else if layerCfg.Render == "light" {
