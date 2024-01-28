@@ -21,9 +21,10 @@ type OutputConfigBlock struct {
 }
 
 type LayerConfigBlock struct {
-	Name    string  `hcl:"name,label"`
-	Render  string  `hcl:"render"`
-	Opacity float64 `hcl:"opacity,optional"`
+	Name    string            `hcl:"name,label"`
+	Render  string            `hcl:"render"`
+	Opacity float64           `hcl:"opacity,optional"`
+	Options map[string]string `hcl:"options,optional"`
 }
 
 type MapConfigBlock struct {

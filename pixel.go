@@ -10,20 +10,18 @@ import (
 	"github.com/Tnze/go-mc/save"
 )
 
-type ChunkPixelRendererOpts struct {
-	Shading bool
-}
-
 type ChunkPixelRenderer struct {
 	sync.Mutex
 
-	opts               ChunkPixelRendererOpts
+	opts               *ChunkRenderOpts
 	shader             *ChunkPixelShader
 	palette            *Palette
 	missingBlockStates map[string]struct{}
+
+	stripCeiling bool
 }
 
-func NewChunkPixelRenderer(opts ChunkPixelRendererOpts, assetLoader *AssetLoader) *ChunkPixelRenderer {
+func NewChunkPixelRenderer(opts *ChunkRenderOpts, assetLoader *AssetLoader) *ChunkPixelRenderer {
 	palette := NewPalette(assetLoader)
 	shader := NewChunkPixelShader()
 	return &ChunkPixelRenderer{
@@ -31,11 +29,12 @@ func NewChunkPixelRenderer(opts ChunkPixelRendererOpts, assetLoader *AssetLoader
 		shader:             shader,
 		palette:            palette,
 		missingBlockStates: make(map[string]struct{}),
+		stripCeiling:       opts.GetBool("strip-ceiling", false),
 	}
 }
 
 func (c *ChunkPixelRenderer) Finalize(path string) error {
-	if !c.opts.Shading {
+	if !c.opts.GetBool("shading", true) {
 		return nil
 	}
 
@@ -65,6 +64,8 @@ func (c *ChunkPixelRenderer) RenderChunk(chunk *save.Chunk) (image.Image, error)
 		for z := 0; z < 16; z++ {
 			heightmapIndex := ((z) * 16) + x
 			yStart := motionBlocking.Get(heightmapIndex)
+			underCeiling := false
+
 			for y := yStart; y > 1; y-- {
 				sectionIndex := y / 16
 				sectionY := y % 16
@@ -80,6 +81,15 @@ func (c *ChunkPixelRenderer) RenderChunk(chunk *save.Chunk) (image.Image, error)
 				blockIndex := ((((sectionY) * 16) + z) * 16) + x
 				blockState := sc.section.BlockStates.Palette[sc.storage.Get(blockIndex)]
 				biomeState := sc.section.Biomes.Palette[sc.biomes.Get(blockIndex)]
+
+				// if we're stripping the ceiling we need to wait for the first airblock
+				if c.stripCeiling && !underCeiling {
+					if !isAirBlock(blockState.Name) || y == yStart {
+						continue
+					} else {
+						underCeiling = true
+					}
+				}
 
 				if isAirBlock(blockState.Name) {
 					continue
