@@ -2,7 +2,6 @@ import { spawn } from "@maf/core.ts";
 import { run } from "@maf/docker/mod.ts";
 import { getGoBuildEnv, GOARCH, GoBuild, GOOS } from "@maf/lang/go.ts";
 import { getClient, Release, webhook } from "@maf/service/github.ts";
-import { toReadableStream } from "@std/io/mod.ts";
 
 const matrix = [
   { os: GOOS.linux, arch: GOARCH.amd64 },
@@ -47,13 +46,12 @@ export async function build({ opts, release }: {
       throw new Error(`failed to get github client`);
     }
 
-    using file = await Deno.open(name, { read: true });
-
+    const data = await Deno.readFile(name);
     await client.uploadReleaseAsset(
       release,
       name,
       "application/octet-stream",
-      toReadableStream(file),
+      data,
     );
   }
 }
@@ -78,9 +76,9 @@ export const github = webhook(async (event) => {
         draft: true,
       });
 
-      for (const build of matrix) {
-        await spawn("build", {
-          opts: { go: build },
+      for (const variant of matrix) {
+        await spawn<Parameters<typeof build>[0]>("build", {
+          opts: { go: variant },
           release: release,
         }, { ref: event.create.ref });
       }
