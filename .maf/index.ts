@@ -20,13 +20,13 @@ export async function release(name: string, tag: string) {
 }
 
 export async function buildAll() {
-  await Promise.all(matrix.map((it) => build({ go: it })));
+  await Promise.all(matrix.map((it) => build({ opts: { go: it } })));
 }
 
-export async function build(
-  opts?: { go: GoBuild; version?: string },
-  release?: Release,
-) {
+export async function build({ opts, release }: {
+  opts?: { go: GoBuild; version?: string };
+  release?: Release;
+}) {
   const go = opts?.go || { os: GOOS.linux, arch: GOARCH.amd64 };
   let name = `carto-${go.os}.${go.arch}`;
   if (go.os === "windows") {
@@ -60,9 +60,9 @@ export async function build(
 
 export const github = webhook(async (event) => {
   if (event.push) {
-    for (const build of matrix) {
-      await spawn("build", {
-        opts: { go: build },
+    for (const variant of matrix) {
+      await spawn<Parameters<typeof build>[0]>("build", {
+        opts: { go: variant },
       }, { ref: event.push.head_commit.id });
     }
   } else if (event.create) {
