@@ -55,7 +55,7 @@ export async function build({ opts, release, sha }: {
     const { size } = await Deno.stat(name);
     await client.createCommitStatus("b1naryth1ef/carto", sha, {
       state: "success",
-      description: `size=${formatBytes(size)}`,
+      description: formatBytes(size),
       context: `carto-${go.os}-${go.arch}`,
     });
   }
