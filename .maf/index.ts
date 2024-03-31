@@ -1,4 +1,4 @@
-import { spawn } from "@maf/core.ts";
+import { spawnFn } from "@maf/core.ts";
 import { run } from "@maf/docker/mod.ts";
 import { getGoBuildEnv, GOARCH, GoBuild, GOOS } from "@maf/lang/go.ts";
 import { getClient, Release, webhook } from "@maf/service/github.ts";
@@ -22,9 +22,10 @@ export async function buildAll() {
   await Promise.all(matrix.map((it) => build({ opts: { go: it } })));
 }
 
-export async function build({ opts, release }: {
+export async function build({ opts, release, sha }: {
   opts?: { go: GoBuild; version?: string };
   release?: Release;
+  sha?: string;
 }) {
   const go = opts?.go || { os: GOOS.linux, arch: GOARCH.amd64 };
   let name = `carto-${go.os}-${go.arch}`;
@@ -40,8 +41,15 @@ export async function build({ opts, release }: {
     },
   );
 
+  const client = await getClient();
+  if (client && sha) {
+    await client.createCommitStatus("b1naryth1ef/carto", sha, {
+      state: "success",
+      context: "build",
+    });
+  }
+
   if (release) {
-    const client = await getClient();
     if (client === null) {
       throw new Error(`failed to get github client`);
     }
@@ -57,7 +65,7 @@ export async function build({ opts, release }: {
 export const github = webhook(async (event) => {
   if (event.push) {
     for (const variant of matrix) {
-      await spawn<Parameters<typeof build>[0]>("build", {
+      await spawnFn<typeof build>("build", {
         opts: { go: variant },
       }, { ref: event.push.head_commit.id });
     }
@@ -67,7 +75,7 @@ export const github = webhook(async (event) => {
       throw new Error(`failed to get github client`);
     }
 
-    if (event.create.ref_type === "tag") {
+    if (event.create.ref_type === "tag" && event.create.ref.startsWith("v")) {
       const release = await client.createRelease("b1naryth1ef/carto", {
         tag: event.create.ref,
         name: event.create.ref,
@@ -75,7 +83,7 @@ export const github = webhook(async (event) => {
       });
 
       for (const variant of matrix) {
-        await spawn<Parameters<typeof build>[0]>("build", {
+        await spawnFn<typeof build>("build", {
           opts: { go: variant },
           release: release,
         }, { ref: event.create.ref });
