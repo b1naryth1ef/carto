@@ -43,6 +43,7 @@ export async function build({ opts, release, sha }: {
     });
   }
 
+  const start = performance.now();
   await run(
     `go build -o ${name} cmd/carto/main.go`,
     {
@@ -55,7 +56,9 @@ export async function build({ opts, release, sha }: {
     const { size } = await Deno.stat(name);
     await client.createCommitStatus("b1naryth1ef/carto", sha, {
       state: "success",
-      description: formatBytes(size),
+      description: `${formatBytes(size)} took ${
+        ((performance.now() - start) / 1000).toFixed(2)
+      }s`,
       context: `carto-${go.os}-${go.arch}`,
     });
   }
