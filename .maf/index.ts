@@ -27,7 +27,7 @@ export async function build({ opts, release }: {
   release?: Release;
 }) {
   const go = opts?.go || { os: GOOS.linux, arch: GOARCH.amd64 };
-  let name = `carto-${go.os}.${go.arch}`;
+  let name = `carto-${go.os}-${go.arch}`;
   if (go.os === "windows") {
     name = name + ".exe";
   }
@@ -46,12 +46,10 @@ export async function build({ opts, release }: {
       throw new Error(`failed to get github client`);
     }
 
-    const data = await Deno.readFile(name);
     await client.uploadReleaseAsset(
       release,
       name,
-      "application/octet-stream",
-      data,
+      await Deno.readFile(name),
     );
   }
 }
