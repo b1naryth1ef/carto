@@ -2,6 +2,7 @@ import { spawnFn } from "@maf/core.ts";
 import { run } from "@maf/docker/mod.ts";
 import { getGoBuildEnv, GOARCH, GoBuild, GOOS } from "@maf/lang/go.ts";
 import { getClient, Release, webhook } from "@maf/service/github.ts";
+import { format as formatBytes } from "@std/fmt/bytes.ts";
 
 const matrix = [
   { os: GOOS.linux, arch: GOARCH.amd64 },
@@ -27,10 +28,19 @@ export async function build({ opts, release, sha }: {
   release?: Release;
   sha?: string;
 }) {
+  const client = await getClient();
+
   const go = opts?.go || { os: GOOS.linux, arch: GOARCH.amd64 };
   let name = `carto-${go.os}-${go.arch}`;
   if (go.os === "windows") {
     name = name + ".exe";
+  }
+
+  if (client && sha) {
+    await client.createCommitStatus("b1naryth1ef/carto", sha, {
+      state: "pending",
+      context: `carto-${go.os}-${go.arch}`,
+    });
   }
 
   await run(
@@ -41,12 +51,12 @@ export async function build({ opts, release, sha }: {
     },
   );
 
-  const client = await getClient();
   if (client && sha) {
+    const { size } = await Deno.stat(name);
     await client.createCommitStatus("b1naryth1ef/carto", sha, {
       state: "success",
-      description: `carto-${go.os}-${go.arch}`,
-      context: "build",
+      description: `size=${formatBytes(size)}`,
+      context: `carto-${go.os}-${go.arch}`,
     });
   }
 
