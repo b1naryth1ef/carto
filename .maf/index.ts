@@ -45,6 +45,7 @@ export async function build({ opts, release, sha }: {
   if (client && sha) {
     await client.createCommitStatus("b1naryth1ef/carto", sha, {
       state: "success",
+      description: `carto-${go.os}-${go.arch}`,
       context: "build",
     });
   }
@@ -67,6 +68,7 @@ export const github = webhook(async (event) => {
     for (const variant of matrix) {
       await spawnFn<typeof build>("build", {
         opts: { go: variant },
+        sha: event.push.head_commit.id,
       }, { ref: event.push.head_commit.id });
     }
   } else if (event.create) {
