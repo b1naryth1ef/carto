@@ -74,7 +74,7 @@ export async function build({ opts, release, sha }: {
 }
 
 export const github = webhook(async (event) => {
-  if (event.push) {
+  if (event.push && event.push.head_commit) {
     for (const variant of matrix) {
       await spawnFn<typeof build>("build", {
         opts: { go: variant },
@@ -101,7 +101,5 @@ export const github = webhook(async (event) => {
         }, { ref: event.create.ref });
       }
     }
-  } else {
-    console.log(event);
   }
 });
