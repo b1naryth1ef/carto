@@ -1,4 +1,4 @@
-import { task } from "@maf/core.ts";
+import { getCommit, task } from "@maf/core.ts";
 import { containerStop, run } from "@maf/docker/mod.ts";
 import { getGoBuildEnv, GOARCH, GoBuild, GOOS } from "@maf/lang/go.ts";
 import {
@@ -44,7 +44,20 @@ map "test" {
 }
 `;
 
-export const test = task("test", async (_args: {}) => {
+export const test = task("test", async (_args: unknown) => {
+  const client = await getClient();
+  let commitStatus = null;
+  if (client) {
+    commitStatus = await CommitStatus.create(
+      "b1naryth1ef/carto",
+      getCommit().id,
+      {
+        state: "pending",
+        context: `carto test`,
+      },
+    );
+  }
+
   await run(
     null,
     {
@@ -65,7 +78,7 @@ export const test = task("test", async (_args: {}) => {
     },
   );
 
-  await run(
+  const res = await run(
     `go run cmd/carto/main.go build --config /config.hcl`,
     {
       image: `golang:${goVersion}-alpine`,
@@ -75,6 +88,11 @@ export const test = task("test", async (_args: {}) => {
       },
     },
   );
+
+  await commitStatus?.update({
+    state: "success",
+    description: `took ${(res.timings.run / 1000).toFixed(2)}s`,
+  });
 });
 
 export async function buildAll() {
