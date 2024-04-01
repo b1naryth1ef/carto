@@ -44,7 +44,7 @@ map "test" {
 }
 `;
 
-export const test = task("test", async () => {
+export const test = task("test", async (_args: {}) => {
   await run(
     null,
     {
@@ -133,7 +133,7 @@ const build = task("build", async ({ opts, release, sha }: {
 
 export const github = webhook(async (event) => {
   if (event.push && event.push.head_commit) {
-    test.spawn(undefined, { ref: event.push.head_commit.id });
+    test.spawn({}, { ref: event.push.head_commit.id });
 
     for (const variant of matrix) {
       build.spawn({
